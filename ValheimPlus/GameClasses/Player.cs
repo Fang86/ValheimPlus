@@ -116,34 +116,44 @@ namespace ValheimPlus.GameClasses
     }
 
     /// <summary>
-    /// Update maximum carry weight based on baseMaximumWeight and baseMegingjordBuff configurations.
+    /// Update maximum carry weight based on baseMaximumWeight configurations.
     /// </summary>
     [HarmonyPatch(typeof(Player), "GetMaxCarryWeight")]
     public static class Player_GetMaxCarryWeight_Patch
     {
-        private static void Postfix(ref float __result)
+        private static void Prefix(ref Player __instance)
         {
             if (Configuration.Current.Player.IsEnabled)
             {
-                bool Megingjord = false;
-                float carryWeight = __result;
-
-                if (carryWeight > 300)
-                {
-                    Megingjord = true;
-                    carryWeight -= 150;
-                }
-
-                carryWeight = Configuration.Current.Player.baseMaximumWeight;
-                if (Megingjord)
-                {
-                    carryWeight = carryWeight + Configuration.Current.Player.baseMegingjordBuff;
-                }
-
-                __result = carryWeight;
+                __instance.m_maxCarryWeight = Configuration.Current.Player.baseMaximumWeight;
             }
         }
     }
+
+
+    /// <summary>
+    /// Update maximum carry weight based on baseMegingjordBuff configurations.
+    /// </summary>
+    [HarmonyPatch(typeof(SEMan), "ModifyMaxCarryWeight")]
+    public static class Player_ModifyMaxCarryWeight_Patch
+    {
+        private static bool Prefix(ref SEMan __instance, ref float baseLimit, ref float limit)
+        {
+            if (!Configuration.Current.Player.IsEnabled) return true;
+
+            foreach (StatusEffect statusEffect in __instance.m_statusEffects)
+            {
+                if (statusEffect.m_name.Contains("beltstrength"))
+                {
+                    limit = baseLimit + Configuration.Current.Player.baseMegingjordBuff;
+                }
+                statusEffect.ModifyMaxCarryWeight(baseLimit, ref limit);
+            }
+
+            return false;
+        }
+    }
+
 
     /// <summary>
     /// Add ValheimPlus intro to compendium.
@@ -170,7 +180,7 @@ namespace ValheimPlus.GameClasses
             Player.m_localPlayer.ShowTutorial("vplus");
 
             //Only sync on first spawn
-            if (VPlusMapSync.ShouldSyncOnSpawn)
+            if (VPlusMapSync.ShouldSyncOnSpawn && Configuration.Current.Map.IsEnabled && Configuration.Current.Map.shareMapProgression)
             {
                 //Send map data to the server
                 VPlusMapSync.SendMapToServer();
@@ -270,7 +280,7 @@ namespace ValheimPlus.GameClasses
             if (Configuration.Current.StaminaUsage.IsEnabled)
             {
                 string methodName = new StackTrace().GetFrame(2).GetMethod().Name;
-                if (methodName.Equals(nameof(Player.UpdatePlacement)) || methodName.Equals(nameof(Player.Repair)))
+                if (methodName.Contains(nameof(Player.UpdatePlacement)) || methodName.Contains(nameof(Player.Repair)) || methodName.Contains(nameof(Player.RemovePiece)))
                 {
                     string itemName = __instance.GetRightItem()?.m_shared.m_name;
                     if (itemName == "$item_hammer")
@@ -490,6 +500,22 @@ namespace ValheimPlus.GameClasses
             public static void MessageNoop(Character _0, MessageHud.MessageType _1, string _2, int _3, Sprite _4, int repaired)
             {
                 m_repair_count += repaired;
+            }
+        }
+
+        /// <summary>
+        /// Configures guardian buff duration and cooldown
+        /// </summary>
+        [HarmonyPatch(typeof(Player), "SetGuardianPower")]
+        public static class Player_SetGuardianPower_Patch
+        {
+            private static void Postfix(ref Player __instance)
+            {
+                if (Configuration.Current.Player.IsEnabled)
+                {
+                    __instance.m_guardianSE.m_ttl = Configuration.Current.Player.guardianBuffDuration;
+                    __instance.m_guardianSE.m_cooldown = Configuration.Current.Player.guardianBuffCooldown;
+                }
             }
         }
     }

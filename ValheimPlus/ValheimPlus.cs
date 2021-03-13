@@ -27,6 +27,8 @@ namespace ValheimPlus
         public static readonly string VPlusDataDirectoryPath =
             Paths.BepInExRootPath + Path.DirectorySeparatorChar + "vplus-data";
 
+        public static Harmony harmony = new Harmony("mod.valheim_plus");
+
         // Project Repository Info
         public static string Repository = "https://github.com/valheimPlus/ValheimPlus";
         public static string ApiRepository = "https://api.github.com/repos/valheimPlus/valheimPlus/tags";
@@ -44,7 +46,7 @@ namespace ValheimPlus
             {
                 Logger.LogInfo("Configuration file loaded succesfully.");
 
-                Harmony harmony = new Harmony("mod.valheim_plus");
+                
                 harmony.PatchAll();
 
                 isUpToDate = !IsNewVersionAvailable();
@@ -65,7 +67,7 @@ namespace ValheimPlus
                 VPlusMainMenu.Load();
 
                 //Map Sync Save Timer
-                if (ZNet.m_isServer)
+                if (ZNet.m_isServer && Configuration.Current.Map.IsEnabled && Configuration.Current.Map.shareMapProgression)
                 {
                     mapSyncSaveTimer.AutoReset = true;
                     mapSyncSaveTimer.Elapsed += (sender, args) => VPlusMapSync.SaveMapDataToDisk();
